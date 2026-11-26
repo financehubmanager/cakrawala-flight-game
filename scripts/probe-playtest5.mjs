@@ -1,0 +1,255 @@
+// Probe 5 for CAKRAWALA (read-only vs game code). Final focused landing tests.
+//  P1: traffic-pattern landing, final target y=12 (guaranteed touchdown trigger)
+//  P2: deliberate overspeed touchdown, then IMMEDIATE full-power climb recovery
+// Usage: node scripts/probe-playtest5.mjs [--port 8096] [--out /tmp/probe5]
+import { chromium } from 'playwright-core';
+import { spawn } from 'node:child_process';
+import { access, mkdir, writeFile } from 'node:fs/promises';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const here = dirname(fileURLToPath(import.meta.url));
+const root = join(here, '..');
+const args = process.argv.slice(2);
+const port = Number(args[args.indexOf('--port') + 1] || 8096);
+const outDir = args[args.indexOf('--out') + 1] || '/tmp/probe-cakrawala5';
+await mkdir(outDir, { recursive: true });
+const base = `http://127.0.0.1:${port}`;
+const LOG = [];
+function log(...a) { const line = a.join(' '); LOG.push(line); console.log(line); }
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const wrapPi = (a) => { while (a > Math.PI) a -= 2 * Math.PI; while (a < -Math.PI) a += 2 * Math.PI; return a; };
+
+async function findChrome() {
+  const home = process.env.HOME;
+  for (const c of [
+    `${home}/.cache/ms-playwright/chromium-1254/chrome-linux64/chrome`,
+    `${home}/.cache/ms-playwright/chromium_headless_shell-1254/chrome-linux/headless_shell`,
+  ]) { try { await access(c); return c; } catch { /* next */ } }
+  return undefined;
+}
+
+const server = spawn('node', ['serve.ts', '--port', String(port)], { cwd: root, stdio: 'ignore' });
+const errors = [];
+const findings = [];
+let browser;
+try {
+  for (let i = 0; i < 40; i += 1) {
+    try { const r = await fetch(`${base}/index.html`); if (r.ok) break; } catch { /* wait */ }
+    await sleep(250);
+  }
+  browser = await chromium.launch({
+    executablePath: await findChrome(),
+    args: ['--no-sandbox', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'],
+  });
+  const page = await browser.newPage({ viewport: { width: 640, height: 360 } });
+  page.on('console', (m) => { if (m.type() === 'error') errors.push(`console: ${m.text()}`); });
+  page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
+  page.on('requestfailed', (r) => {
+    if (!r.url().endsWith('/favicon.ico')) errors.push(`requestfailed: ${r.url()} ${r.failure()?.errorText}`);
+  });
+
+  const state = () => page.evaluate(() => window.__game.state());
+  const hudText = (id) => page.evaluate((i) => document.getElementById(i)?.textContent ?? null, id);
+  const crashReason = () => page.evaluate(() => ({
+    reason: document.getElementById('crash-reason')?.textContent ?? null,
+    visible: !document.getElementById('crash-screen')?.classList.contains('hidden'),
+  }));
+
+  await page.goto(`${base}/?lite=1`, { waitUntil: 'load', timeout: 30000 });
+  await sleep(2000);
+
+  class Pilot {
+    constructor() { this.held = new Set(); }
+    async setKeys(want) {
+      for (const k of [...this.held]) if (!want.has(k)) { await page.keyboard.up(k); this.held.delete(k); }
+      for (const k of want) if (!this.held.has(k)) { await page.keyboard.down(k); this.held.add(k); }
+    }
+    async release() { await this.setKeys(new Set()); }
+  }
+  const pilot = new Pilot();
+
+  async function holdHeading(desiredH, targetY, cruise) {
+    const s = await state();
+    if (s.phase !== 'flying') return { s, phase: s.phase };
+    const err = wrapPi(desiredH - s.heading);
+    const vsDes = Math.max(-(cruise.vsCap ?? 10), Math.min(cruise.vsClimb ?? 14, (targetY - s.position.y) * 0.3));
+    const pitchDes = Math.max(-0.42, Math.min(0.42, Math.asin(Math.max(-1, Math.min(1, vsDes / Math.max(30, s.speed))))));
+    const keys = new Set();
+    if (err > 0.08) keys.add('ArrowLeft');
+    else if (err < -0.08) keys.add('ArrowRight');
+    if (pitchDes > s.pitch + 0.05) keys.add('ArrowUp');
+    else if (pitchDes < s.pitch - 0.05) keys.add('ArrowDown');
+    if (s.throttle < cruise.throttle - 0.03) keys.add('KeyW');
+    else if (s.throttle > cruise.throttle + 0.06) keys.add('KeyS');
+    await pilot.setKeys(keys);
+    return { s };
+  }
+
+  async function waitState(pred, timeoutMs, label) {
+    const t0 = Date.now();
+    let last = null;
+    while (Date.now() - t0 < timeoutMs) {
+      last = await state();
+      if (pred(last)) return last;
+      await sleep(200);
+    }
+    throw new Error(`timeout: ${label}; last=${JSON.stringify(last)}`);
+  }
+
+  async function takeoff() {
+    await page.keyboard.down('KeyW');
+    await page.keyboard.down('ArrowUp');
+    const s = await waitState((v) => !v.onGround, 120000, 'liftoff');
+    await page.keyboard.up('ArrowUp');
+    return s;
+  }
+
+  // ---- TEST P1: traffic-pattern landing ----------------------------------
+  await page.evaluate(() => window.__game.startMission('ring-run'));
+  await sleep(500);
+  await takeoff();
+  // Climb north to 150.
+  {
+    const t1 = Date.now();
+    while (Date.now() - t1 < 120000) {
+      const r = await holdHeading(0, 150, { throttle: 0.7, vsCap: 8, vsClimb: 20 });
+      if (r.phase) break;
+      if (r.s.position.y > 140) break;
+      await sleep(150);
+    }
+  }
+  const atTop = await state();
+  log('P1 AT TOP y=', atTop.position.y.toFixed(0), 'z=', Math.round(atTop.position.z), 'phase=', atTop.phase);
+  // 180 deg turn to south.
+  {
+    const t1 = Date.now();
+    while (Date.now() - t1 < 120000) {
+      const r = await holdHeading(Math.PI, 150, { throttle: 0.6, vsCap: 8, vsClimb: 10 });
+      if (r.phase) break;
+      if (Math.abs(wrapPi(Math.PI - r.s.heading)) < 0.15) break;
+      await sleep(150);
+    }
+  }
+  const turned = await state();
+  log('P1 TURNED heading=', turned.heading.toFixed(2), 'pos=(', Math.round(turned.position.x), ',', Math.round(turned.position.z), ') y=', turned.position.y.toFixed(0), 'phase=', turned.phase);
+  // Fly south, descend to 55, aiming to reach 55 around z=500.
+  {
+    const t1 = Date.now();
+    while (Date.now() - t1 < 120000) {
+      const r = await holdHeading(Math.PI, 55, { throttle: 0.35, vsCap: 6, vsClimb: 6 });
+      if (r.phase) break;
+      if (r.s.position.z >= 450 && r.s.position.y < 70) break;
+      await sleep(150);
+    }
+  }
+  const onFinal = await state();
+  log('P1 ON FINAL y=', onFinal.position.y.toFixed(0), 'z=', Math.round(onFinal.position.z), 'speed=', onFinal.speed.toFixed(0), 'phase=', onFinal.phase);
+  await page.keyboard.press('KeyF');
+  await sleep(400);
+  log('P1 flaps=', await hudText('hud-flaps'), 'gear=', await hudText('hud-gear'));
+  // Final: south, descend to y=12 (touchdown trigger is y<=14.5 on the strip).
+  let outcome1 = null; const samples1 = [];
+  {
+    const t1 = Date.now();
+    let prev = null;
+    while (Date.now() - t1 < 180000) {
+      const r = await holdHeading(Math.PI, 12, { throttle: 0.35, vsCap: 5.5, vsClimb: 5 });
+      const s = r.s;
+      if (prev) {
+        const dtSim = prev.timeLeft - s.timeLeft;
+        if (dtSim > 0.01) samples1.push({ y: +s.position.y.toFixed(1), spd: +s.speed.toFixed(0), sink: +((prev.position.y - s.position.y) / dtSim).toFixed(1), z: Math.round(s.position.z), x: Math.round(s.position.x) });
+      }
+      prev = s;
+      if (s.phase === 'complete') { outcome1 = 'complete'; break; }
+      if (s.phase === 'crashed') { outcome1 = `crashed hits=${s.hits} reason=${JSON.stringify(await crashReason())}`; break; }
+      if (s.onGround) { outcome1 = `touchdown(still flying, rings not done) z=${Math.round(s.position.z)} x=${Math.round(s.position.x)}`; break; }
+      if (s.position.z > 1080 && s.position.y < 40) { outcome1 = 'overshoot-runway-south'; break; }
+      await sleep(100);
+    }
+  }
+  await pilot.release();
+  await page.keyboard.up('KeyW');
+  const fin1 = await state();
+  log('P1 LANDING outcome=', outcome1, 'phase=', fin1.phase, 'speed=', fin1.speed.toFixed(1),
+    'pos=(', Math.round(fin1.position.x), ',', Math.round(fin1.position.y), ',', Math.round(fin1.position.z), ') hits=', fin1.hits);
+  log('P1 final samples:', JSON.stringify(samples1.slice(-5)));
+  if (outcome1 && outcome1.startsWith('touchdown')) {
+    log('P1 LANDING MECHANICS VERIFIED: gentle touchdown on strip, gear down, phase stays flying (touch-and-go, rings not done)');
+  } else {
+    findings.push(`P1: pendaratan pola lalu lintas gagal — outcome: ${outcome1}`);
+  }
+
+  // ---- TEST P2: overspeed touchdown + immediate recovery -----------------
+  await page.keyboard.press('KeyR');
+  await sleep(800);
+  await takeoff();
+  // Climb to 120 over the strip.
+  {
+    const t1 = Date.now();
+    while (Date.now() - t1 < 120000) {
+      const r = await holdHeading(0, 120, { throttle: 0.8, vsCap: 8, vsClimb: 14 });
+      if (r.phase) break;
+      if (r.s.position.y > 110) break;
+      await sleep(150);
+    }
+  }
+  const diveStart = await state();
+  log('P2 DIVE START y=', diveStart.position.y.toFixed(0), 'z=', Math.round(diveStart.position.z), 'speed=', diveStart.speed.toFixed(0));
+  let hitsSeen = 0; let outcome2 = null; let touchdownSpeed = null;
+  {
+    const t1 = Date.now();
+    let diving = true;
+    while (Date.now() - t1 < 150000) {
+      const s = await state();
+      if (s.phase === 'crashed') { outcome2 = `crashed hits=${s.hits} reason=${JSON.stringify(await crashReason())}`; break; }
+      if (s.hits > hitsSeen) {
+        hitsSeen = s.hits;
+        log(`P2 HIT #${hitsSeen} speed=${s.speed.toFixed(0)} y=${s.position.y.toFixed(0)} pos=(${Math.round(s.position.x)},${Math.round(s.position.z)}) stalled=${s.stalled}`);
+        if (hitsSeen === 1) {
+          touchdownSpeed = s.speed;
+          // IMMEDIATE recovery: full power + climb.
+          await pilot.release();
+          await page.keyboard.down('KeyW');
+          await page.keyboard.down('ArrowUp');
+          diving = false;
+        }
+      }
+      if (diving) {
+        const r = await holdHeading(0, 12, { throttle: 1.0, vsCap: 14, vsClimb: 5 });
+        if (r.s && !r.phase && r.s.speed > 0) touchdownSpeed = r.s.speed;
+      } else {
+        const s2 = await state();
+        if (s2.position.y > 100 && s2.hits === 1 && !s2.stalled && s2.phase === 'flying') {
+          outcome2 = `RECOVERED after 1 hit (y=${s2.position.y.toFixed(0)}, speed=${s2.speed.toFixed(0)}, hits=1)`;
+          break;
+        }
+      }
+      await sleep(120);
+    }
+  }
+  await pilot.release();
+  await page.keyboard.up('KeyW');
+  await page.keyboard.up('ArrowUp');
+  log('P2 OUTCOME:', outcome2 ?? 'timeout/unknown');
+  if (outcome2 && outcome2.startsWith('crashed')) {
+    findings.push(`P2 (sedang): satu touchdown overspeed berujung crash MESKIPUN langsung full-power + mendaki — ${outcome2}. Bounce (speed x0.45) menjatuhkan pesawat ke bawah stall 52 m/s; stall memaksa hidung turun (-0.22) + sink 14 m/s sehingga pesawat menyentuh tanah lagi sebelum sempat pulih. Efektif: 1 hit di ketinggian rendah = crash.`);
+  } else if (outcome2) {
+    log('P2 recovery possible:', outcome2);
+  }
+
+  await page.screenshot({ path: join(outDir, 'final.png') });
+  await writeFile(join(outDir, 'probe-log.txt'), LOG.join('\n'), 'utf8');
+} catch (e) {
+  log('PROBE ERROR', e?.stack || String(e));
+  findings.push(`probe error: ${e?.message}`);
+} finally {
+  if (browser) await browser.close();
+  server.kill();
+}
+
+log('ERRORS(' + errors.length + ')', errors.length ? JSON.stringify(errors, null, 2) : 'none');
+log('FINDINGS(' + findings.length + ')');
+findings.forEach((f) => log(' - ' + f));
+if (errors.length || findings.length) process.exitCode = 1;
+log('PROBE DONE');

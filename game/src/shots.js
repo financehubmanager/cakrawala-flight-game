@@ -3,14 +3,14 @@
 // so the screenshots are real renders of the game's own code, reproducible
 // every run, and the critic loop compares like with like.
 //   cover   — chase view, low over the lagoon toward the volcano, ring ahead
-//   play    — mid-flight ring pass, wings banked, terraces below
+//   crash   — the wrecked Elang-7 on the ridge slope, crash banner + HUD
 //   cockpit — cockpit view, lit panel, ring and runway ahead
-//   landing — final approach, gear down, runway lights ahead, dusk light
+//   landing — touchdown, gear down, runway lights ahead, dusk light
 import { heightAt } from './terrain.js';
 
 export const SHOTS = [
   { name: '1-cover.jpg', query: '?shot=cover&seed=1' },
-  { name: '2-play.jpg', query: '?shot=play&seed=1' },
+  { name: '2-crash.jpg', query: '?shot=crash&seed=1' },
   { name: '3-cockpit.jpg', query: '?shot=cockpit&seed=1' },
   { name: '4-landing.jpg', query: '?shot=landing&seed=1' },
 ];
@@ -31,13 +31,29 @@ export function shotState(name) {
         aircraft: { x: 344, y: ground(344, 1120) + 76, z: 1120, heading: 0, pitch: 0.0, roll: -0.08, speed: 96, throttle: 0.75, fuel: 0.86, vspeed: 0, onGround: false, gearDown: false },
         ringsPassed: 0, elapsed: 30,
       };
-    case 'play':
+    case 'crash':
       return {
         missionId: 'ridge-courier', camera: 'chase', timeOfDay: 'golden',
-        // 160 m before ring 4 on the ring 3 -> ring 4 leg, so the gate sits
-        // ahead in frame instead of swallowing the camera.
-        aircraft: { x: -351, y: ground(-351, -165) + 95, z: -165, heading: 0.94, pitch: -0.02, roll: 0.3, speed: 104, throttle: 0.8, fuel: 0.7, vspeed: -0.6, onGround: false, gearDown: false },
-        ringsPassed: 3, elapsed: 74,
+        // v5: CRASH, not mid-flight — the wrecked Elang-7 on the valley
+        // floor between ring 3 (-180,-40) and ring 4 (-480,-260), nose
+        // down and banked onto a wing after the third hard impact
+        // (RUSAK 3/3, fuel 0.09 = LOW). The valley floor here is nearly
+        // flat (slope ~0.05, terraced green), so the wreck rests visibly
+        // ON the ground — wheels touching, low wingtip dug into the
+        // terrace — instead of floating against a steep slope (the first
+        // ridge site at (-900,-600) read as a steep bank in the air).
+        // Ring 4 glows ahead: the sortie was chasing it when it went in.
+        // v5.2: pose + camera tuned after two shoots read as "banking in
+        // the air" — the chase cam was too far/high to show ground
+        // contact, and SPD 0 at ALT 97 m read as frozen physics. Now the
+        // camera is closer/lower (10 m, 3.2 m) and the wreck is more
+        // wrecked (roll 0.75, pitch -0.35, y = ground + 2): the low
+        // wingtip digs into the terrace, the wheels touch, the nose sits
+        // just above the grass.
+        aircraft: { x: -400, y: ground(-400, -200) + 2, z: -200, heading: 0.94, pitch: -0.35, roll: 0.75, speed: 0, throttle: 0, fuel: 0.09, vspeed: 0, onGround: true, gearDown: false, hits: 3 },
+        ringsPassed: 3, elapsed: 96,
+        crashed: true, crashReason: 'Menabrak tanah — pesawat hancur.',
+        cameraDist: 10, cameraHeight: 3.2,
       };
     case 'cockpit':
       return {

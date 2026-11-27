@@ -23,31 +23,38 @@ export function shotState(name) {
     case 'cover':
       return {
         missionId: 'ring-run', camera: 'chase', timeOfDay: 'golden',
-        aircraft: { x: 420, y: ground(420, 620) + 100, z: 620, heading: 0.6, pitch: 0.02, roll: -0.18, speed: 96, throttle: 0.72, fuel: 0.86, vspeed: 1.8, onGround: false },
-        ringsPassed: 1, elapsed: 38,
+        // v2: low pass down the runway centreline, facing north — the strip
+        // fills the lower frame, ring 1 sits dead ahead over it, the volcano
+        // looms beyond. Runway AND ring in one frame (v1 showed no runway).
+        // 14 m east of the centreline so the strip shows beside the plane
+        // instead of hiding under it.
+        aircraft: { x: 344, y: ground(344, 1120) + 76, z: 1120, heading: 0, pitch: 0.0, roll: -0.08, speed: 96, throttle: 0.75, fuel: 0.86, vspeed: 0, onGround: false, gearDown: false },
+        ringsPassed: 0, elapsed: 30,
       };
     case 'play':
       return {
         missionId: 'ridge-courier', camera: 'chase', timeOfDay: 'golden',
         // 160 m before ring 4 on the ring 3 -> ring 4 leg, so the gate sits
         // ahead in frame instead of swallowing the camera.
-        aircraft: { x: -351, y: ground(-351, -165) + 95, z: -165, heading: 0.94, pitch: -0.02, roll: 0.45, speed: 104, throttle: 0.8, fuel: 0.7, vspeed: -0.6, onGround: false },
+        aircraft: { x: -351, y: ground(-351, -165) + 95, z: -165, heading: 0.94, pitch: -0.02, roll: 0.3, speed: 104, throttle: 0.8, fuel: 0.7, vspeed: -0.6, onGround: false, gearDown: false },
         ringsPassed: 3, elapsed: 74,
       };
     case 'cockpit':
       return {
         missionId: 'ring-run', camera: 'cockpit', timeOfDay: 'golden',
-        // ~120 m behind ring 2 on the approach leg, so the gate, the
-        // volcano and the panel all share the frame.
-        aircraft: { x: 214, y: ground(214, 254) + 110, z: 254, heading: 0.9, pitch: 0.0, roll: 0.1, speed: 92, throttle: 0.7, fuel: 0.82, vspeed: 0.9, onGround: false },
-        ringsPassed: 1, elapsed: 46,
+        // v2: LEVEL flight (roll 0, pitch 0) on the runway centreline, heading
+        // north — the ATT horizon and the world horizon agree, so nothing
+        // reads as a bug; the compass centres on N 000, so no half-label.
+        // Ring 1 and the strip share the windscreen with the volcano.
+        aircraft: { x: 330, y: ground(330, 1180) + 83, z: 1180, heading: 0, pitch: 0.0, roll: 0, speed: 92, throttle: 0.7, fuel: 0.82, vspeed: 0, onGround: false, gearDown: false },
+        ringsPassed: 0, elapsed: 30,
       };
     case 'landing':
       return {
         missionId: 'ridge-courier', camera: 'chase', timeOfDay: 'dusk',
-        // ~150 m before the threshold at 60 m: the strip and its threshold
-        // fill the lower half instead of empty green.
-        aircraft: { x: 330, y: 60, z: 1210, heading: 0, pitch: -0.12, roll: 0, speed: 62, throttle: 0.3, fuel: 0.3, vspeed: -4.0, onGround: false, gearDown: true, flaps: true },
+        // v2: 80 m before the threshold at 50 m — the strip and its threshold
+        // fill the lower half instead of empty green (v1 was 150 m out).
+        aircraft: { x: 330, y: 50, z: 1140, heading: 0, pitch: -0.1, roll: 0, speed: 60, throttle: 0.3, fuel: 0.3, vspeed: -3.5, onGround: false, gearDown: true, flaps: true },
         ringsPassed: 11, elapsed: 218,
       };
     default:

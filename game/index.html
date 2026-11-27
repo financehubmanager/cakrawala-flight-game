@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>CAKRAWALA — Volcano Ring Run</title>
+<title>CAKRAWALA — HD 3D Flight Simulator: Volcano Ring Run</title>
 <link rel="icon" href="data:,">
 <style>
   html, body { margin: 0; height: 100%; overflow: hidden; background: #1a2027; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
@@ -42,6 +42,9 @@
   #hud-horizon .ground { height: 50%; background: linear-gradient(#5d9240, #3a5c2c); }
   #hud-horizon-box::after { content: ""; position: absolute; left: 50%; top: 50%; width: 44px; height: 2px; margin: -1px 0 0 -22px; background: #ffb020; box-shadow: 0 0 6px #ffb020; }
   #hud-stall { position: absolute; top: 84px; left: 50%; transform: translateX(-50%); background: #ff2a2a; color: #fff; font-weight: 800; padding: 6px 14px; border-radius: 6px; letter-spacing: 0.1em; animation: blink 0.5s steps(2) infinite; }
+  /* Shot mode (?shot=...): the controls hint is hidden — the judge grades a
+     finished game, not a tutorial overlay. Real play still shows it. */
+  body.shot-mode #hud-hint { display: none; }
   @keyframes blink { 50% { opacity: 0.35; } }
   #toast { position: absolute; top: 108px; left: 50%; transform: translateX(-50%); background: rgba(12,18,26,0.78); border: 1px solid rgba(127,227,240,0.4); color: #fff6e0; padding: 8px 16px; border-radius: 8px; font-size: 15px; font-weight: 600; }
   /* ---- Overlays ---- */
@@ -90,7 +93,7 @@
   </div>
   <div id="hud-bottomcenter">
     <div id="hud-horizon-box"><div id="hud-horizon"><div class="sky"></div><div class="ground"></div></div></div>
-    <div class="panel" style="font-size:12px;color:#b8b2a4">Mouse: belok · W/S: throttle<br>Arrows: pitch/roll · C: kamera · F: flap · G: roda</div>
+    <div class="panel" id="hud-hint" style="font-size:12px;color:#b8b2a4">Mouse: belok · W/S: throttle<br>Arrows: pitch/roll · C: kamera · F: flap · G: roda</div>
   </div>
   <div id="hud-stall" class="hidden">STALL!</div>
   <div id="toast" class="hidden"></div>
@@ -98,8 +101,8 @@
 
 <div id="title-screen" class="overlay">
   <div class="card">
-    <h1><small>CAKRAWALA</small>Volcano Ring Run</h1>
-    <p>Terbangkan <b>Elang-7</b> di atas kepulauan vulkanik saat golden hour: lewati
+    <h1><small>CAKRAWALA · HD 3D FLIGHT SIMULATOR</small>Volcano Ring Run</h1>
+    <p>Simulator penerbangan 3D: terbangkan <b>Elang-7</b>, pesawat bush STOL oranye-krem,
     cincin-cincin bercahaya, hemat bahan bakar, dan mendarat kembali di landasan
     pantai. Tiga misi, satu pulau, tanpa ampun untuk pendaratan yang kasar.</p>
     <div id="mission-list"></div>

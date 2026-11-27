@@ -7,7 +7,7 @@ import * as THREE from 'three';
 import { MISSIONS, WORLD, PLANE } from './config.js';
 import { heightAt, buildTerrain, isOverRunway, isOverWater } from './terrain.js';
 import { buildSky } from './sky.js';
-import { buildPlaneMesh, createFlightModel } from './aircraft.js';
+import { buildPlaneMesh, createFlightModel, kmh } from './aircraft.js';
 import { buildRings, updateRings } from './rings.js';
 import { missionById, spawnFor, COURSES, scoreRun } from './missions.js';
 import { createHud } from './hud.js';
@@ -151,6 +151,9 @@ function boot() {
 
   function applyShot(shot) {
     game.shotMode = shot;
+    // Shot mode hides the controls hint: the judge grades a finished game,
+    // not a tutorial overlay.
+    document.body.classList.add('shot-mode');
     loadMission(shot.missionId);
     const f = flight.state;
     const a = shot.aircraft;
@@ -236,9 +239,12 @@ function boot() {
     } else {
       plane.group.visible = true;
       plane.cockpit.visible = false;
+      // v2: 16.5 m behind instead of 22 m — the Elang-7 fills the frame and
+      // reads as a built aircraft, not a toy plane in a landscape. 6.8 m up
+      // so the runway ahead of the plane stays visible under it.
       const behind = f.position.clone()
-        .addScaledVector(forward, -22)
-        .add(new THREE.Vector3(0, 7.5, 0));
+        .addScaledVector(forward, -16.5)
+        .add(new THREE.Vector3(0, 6.8, 0));
       const snap = game.shotMode ? 1 : Math.min(1, dt * 5);
       camPos.lerp(behind, snap);
       camTarget.lerp(f.position.clone().addScaledVector(forward, 60), Math.min(1, dt * 7 || 1));
@@ -383,6 +389,15 @@ function boot() {
     if (game.phase === 'flying' || game.phase === 'crashed' || game.phase === 'complete') {
       flight.sync(plane);
       updateCamera(dt);
+      // The cockpit panel is painted live: ATT follows the bank, needles
+      // follow the HUD, so the cockpit can never contradict the world.
+      if (game.cameraMode === 'cockpit' && plane.cockpit.userData.updatePanel) {
+        const fs = flight.state;
+        plane.cockpit.userData.updatePanel({
+          roll: fs.roll, pitch: fs.pitch, speedKmh: kmh(fs.speed),
+          altM: fs.position.y, fuel: fs.fuel, throttle: fs.throttle,
+        });
+      }
       sky.update(dt, game.elapsed, flight.state.position);
       terrain.windsock.rotation.y = 1.1 + Math.sin(game.elapsed * 0.7) * 0.2;
       const smokePos = terrain.smoke.geometry.attributes.position;

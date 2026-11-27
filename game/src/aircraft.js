@@ -199,13 +199,15 @@ function buildCockpit() {
 
   // A-pillars: from the panel's top corners up and out, leaving through the
   // frame's top corners — the windscreen is framed, not open sky. Thin
-  // (0.05 m) and slightly metallic, so they read as structure catching the
-  // sun instead of black girders.
+  // (v4: 0.04 m, down from 0.05 after the tester measured ~30 px in the
+  // cockpit shot) and slightly metallic, so they read as structure catching
+  // the sun instead of black girders. Framing is kept — the struts still
+  // run panel corner to frame corner, just less dominant.
   [-1, 1].forEach((s) => {
     strutBetween(
       new THREE.Vector3(s * 0.98, 0.62, -4.25),
       new THREE.Vector3(s * 1.85, 2.15, -3.95),
-      0.05, metal,
+      0.04, metal,
     );
   });
 

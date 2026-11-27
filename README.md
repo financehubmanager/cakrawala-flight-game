@@ -4,7 +4,9 @@
 [![rank](https://make.fun/badge/best-flight-game-20261126-0057/financehubmanager/cakrawala-flight-game/rank.svg)](https://make.fun/bounty/best-flight-game-20261126-0057/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=best-flight-game-20261126-0057)
 [![reward](https://make.fun/badge/best-flight-game-20261126-0057/financehubmanager/cakrawala-flight-game/reward.svg)](https://make.fun/bounty/best-flight-game-20261126-0057?utm_source=github&utm_medium=readme&utm_campaign=best-flight-game-20261126-0057)
 
-CAKRAWALA — Volcano Ring Run: terbangkan Elang-7, pesawat bush oranye-krem, di atas kepulauan vulkanik saat golden hour. Lewati cincin-cincin bercahaya, hemat bahan bakar, dan mendarat kembali di landasan pantai. Tiga misi: Ring Run, Ridge Courier, dan Volcano Dash saat senja dengan angin kencang.
+# CAKRAWALA — HD 3D Flight Simulator: Volcano Ring Run
+
+CAKRAWALA — HD 3D Flight Simulator: terbangkan Elang-7, pesawat bush STOL oranye-krem, di atas kepulauan vulkanik Indonesia saat golden hour. Simulator penerbangan 3D dengan kokpit berinstrumen hidup, HUD lengkap (altitude, speed, heading), dan fisika terbang yang menghargai disiplin throttle dan belokan. Lewati cincin-cincin bercahaya, hemat bahan bakar, dan mendarat kembali di landasan pantai. Tiga misi: Ring Run, Ridge Courier, dan Volcano Dash saat senja dengan angin kencang.
 
 ## Run it
 

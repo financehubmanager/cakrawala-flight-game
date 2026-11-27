@@ -177,7 +177,12 @@ function boot() {
     game.rings.forEach((ring, i) => {
       ring.group.userData.passed = i < shot.ringsPassed;
     });
-    game.objective = `Terbang melewati cincin ${game.ringsPassed + 1}/${game.ringTotal}`;
+    // v4: when every ring is passed the shot is a landing, not another
+    // gate — say so (the runtime sets the same line when the last ring
+    // is passed). Without this, ringsPassed 12 would read "cincin 13/12".
+    game.objective = game.ringsPassed >= game.ringTotal
+      ? 'Semua cincin dilewati — mendarat di landasan!'
+      : `Terbang melewati cincin ${game.ringsPassed + 1}/${game.ringTotal}`;
     game.phase = 'flying';
     hud.showOverlay(null);
     hud.update(game);

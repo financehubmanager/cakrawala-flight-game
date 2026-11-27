@@ -52,10 +52,13 @@ export function shotState(name) {
     case 'landing':
       return {
         missionId: 'ridge-courier', camera: 'chase', timeOfDay: 'dusk',
-        // v2: 80 m before the threshold at 50 m — the strip and its threshold
-        // fill the lower half instead of empty green (v1 was 150 m out).
-        aircraft: { x: 330, y: 50, z: 1140, heading: 0, pitch: -0.1, roll: 0, speed: 60, throttle: 0.3, fuel: 0.3, vspeed: -3.5, onGround: false, gearDown: true, flaps: true },
-        ringsPassed: 11, elapsed: 218,
+        // v4: TOUCHDOWN, not approach — wheels on the strip 20 m past the
+        // threshold (groundY 12 + 3 = 15 m), flare nose-up, gentle sink.
+        // The strip fills the lower frame and runs 600 m ahead; the
+        // threshold bars sit under the nose; all 12 rings passed, so the
+        // objective reads as landing (see applyShot in main.js).
+        aircraft: { x: 330, y: 15, z: 1040, heading: 0, pitch: 0.06, roll: 0, speed: 55, throttle: 0.25, fuel: 0.3, vspeed: -1.5, onGround: true, gearDown: true, flaps: true },
+        ringsPassed: 12, elapsed: 218,
       };
     default:
       return null;

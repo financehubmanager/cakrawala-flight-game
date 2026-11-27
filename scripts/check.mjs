@@ -129,13 +129,15 @@ try {
   }
   if (errors.length > 0) failures.push(...errors);
 
-  // Shot modes must all boot without errors.
-  for (const shot of ['cover', 'play', 'cockpit', 'landing']) {
+  // Shot modes must all boot without errors. The crash shot is a real
+  // crashed state (v5), so it must reach phase 'crashed', not 'flying'.
+  for (const shot of ['cover', 'crash', 'cockpit', 'landing']) {
     await page.goto(`${base}/?shot=${shot}&seed=1`, { waitUntil: 'load', timeout: 30000 });
     await sleep(3000);
     const shotState = await page.evaluate(() => window.__game?.state?.() ?? null);
     console.log(`SHOT ${shot}`, JSON.stringify(shotState));
-    if (!shotState || shotState.phase !== 'flying') failures.push(`shot ${shot} did not reach flying phase`);
+    const expected = shot === 'crash' ? 'crashed' : 'flying';
+    if (!shotState || shotState.phase !== expected) failures.push(`shot ${shot} phase is ${shotState?.phase}, expected ${expected}`);
   }
   if (errors.length > 0) failures.push(...errors);
   await browser.close();

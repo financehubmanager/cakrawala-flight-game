@@ -45,7 +45,10 @@ function terrainColor(x, z, h, slope) {
     c.set(PALETTE.sand);
   } else if (h < 170 && slope < 0.55) {
     // Rice terraces: height is banded into steps, alternating two greens.
-    const band = Math.floor(h / 7) % 2 === 0 ? PALETTE.terraceA : PALETTE.terraceB;
+    // v2: 24 m bands (the mesh's vertices sit ~23 m apart, so the v1 7 m
+    // bands aliased away and the hills read as flat green) with a stronger
+    // light/dark contrast between steps.
+    const band = Math.floor(h / 24) % 2 === 0 ? PALETTE.terraceA : PALETTE.terraceB;
     c.set(band);
     c.offsetHSL(0, 0, (n - 0.5) * 0.06);
   } else if (h < 170) {
@@ -113,6 +116,30 @@ export function buildTerrain(scene) {
   sea.name = 'sea';
   group.add(sea);
 
+  // A shallow turquoise lagoon off the east coast: a lighter patch on the
+  // sea, so the water reads as a bay, not a flat sheet.
+  const lagoon = new THREE.Mesh(
+    new THREE.CircleGeometry(260, 40),
+    new THREE.MeshPhongMaterial({
+      color: 0x54b8c9, specular: 0xffe9b8, shininess: 160,
+      transparent: true, opacity: 0.85,
+    }),
+  );
+  lagoon.rotation.x = -Math.PI / 2;
+  lagoon.position.set(900, WORLD.seaLevel + 0.6, 300);
+  lagoon.name = 'lagoon';
+  group.add(lagoon);
+
+  // Distant islands on the horizon: low dark cones in the sea, so the
+  // horizon has layered depth instead of an empty gradient.
+  const islandMat = new THREE.MeshStandardMaterial({ color: PALETTE.basalt, roughness: 1, flatShading: true });
+  [[1500, -900, 260, 70], [1750, 300, 210, 52], [1250, 1500, 180, 42]].forEach(([x, z, r, h]) => {
+    const island = new THREE.Mesh(new THREE.ConeGeometry(r, h, 7), islandMat);
+    island.position.set(x, h / 2 - 22, z);
+    island.name = 'island';
+    group.add(island);
+  });
+
   // Terraced hills get trees: instanced cones + trunks, only where the ground
   // is grassy, gentle and clear of the runway and the volcano.
   const treeSpots = [];
@@ -141,17 +168,55 @@ export function buildTerrain(scene) {
   const m = new THREE.Matrix4();
   const q = new THREE.Quaternion();
   const sc = new THREE.Vector3();
+  const crownTint = new THREE.Color();
   treeSpots.forEach((t, i) => {
     sc.set(t.s, t.s, t.s);
     m.compose(new THREE.Vector3(t.x, t.h + 2.2 * t.s, t.z), q, sc);
     trunks.setMatrixAt(i, m);
     m.compose(new THREE.Vector3(t.x, t.h + (5 + 5) * t.s, t.z), q, sc);
     crowns.setMatrixAt(i, m);
+    // Per-tree tint so the forest is not one flat green.
+    crownTint.setHSL(0.29 + rand(i + 21) * 0.04, 0.5, 0.32 + rand(i + 55) * 0.12);
+    crowns.setColorAt(i, crownTint);
   });
+  if (crowns.instanceColor) crowns.instanceColor.needsUpdate = true;
   trunks.castShadow = true;
   crowns.castShadow = true;
   group.add(trunks);
   group.add(crowns);
+
+  // Broadleaf trees: round crowns in the valleys and near the coast, so the
+  // forest is not 850 identical cones. Same seeded placement, second type.
+  const broadSpots = [];
+  for (let i = 0; i < 6000 && broadSpots.length < 180; i += 1) {
+    const x = (rand(i + 70000) - 0.5) * (size - 200);
+    const z = (rand(i + 120000) - 0.5) * (size - 200);
+    const h = heightAt(x, z);
+    const slope = Math.abs(heightAt(x + 6, z) - h) / 6;
+    const nearRunway = Math.abs(x - RUNWAY.x) < 160 && Math.abs(z - RUNWAY.z) < RUNWAY.length / 2 + 160;
+    const nearVolcano = Math.hypot(x - VOLCANO.x, z - VOLCANO.z) < VOLCANO.radius * 0.55;
+    if (h > 14 && h < 120 && slope < 0.3 && !nearRunway && !nearVolcano && rand(i + 31337) < 0.25) {
+      broadSpots.push({ x, z, h, s: 0.8 + rand(i + 3) * 0.8 });
+    }
+  }
+  const broadTrunks = new THREE.InstancedMesh(trunkGeo, trunkMat, broadSpots.length);
+  const broadCrownGeo = new THREE.SphereGeometry(4.6, 7, 5);
+  const broadCrownMat = new THREE.MeshStandardMaterial({ color: 0x4a7d3a, roughness: 1, flatShading: true });
+  const broadCrowns = new THREE.InstancedMesh(broadCrownGeo, broadCrownMat, broadSpots.length);
+  broadSpots.forEach((t, i) => {
+    sc.set(t.s, t.s, t.s);
+    m.compose(new THREE.Vector3(t.x, t.h + 2.2 * t.s, t.z), q, sc);
+    broadTrunks.setMatrixAt(i, m);
+    m.compose(new THREE.Vector3(t.x, t.h + 9 * t.s, t.z), q, new THREE.Vector3(t.s, t.s * 0.75, t.s));
+    broadCrowns.setMatrixAt(i, m);
+    crownTint.setHSL(0.26 + rand(i + 91) * 0.05, 0.48, 0.3 + rand(i + 17) * 0.12);
+    broadCrowns.setColorAt(i, crownTint);
+  });
+  if (broadCrowns.instanceColor) broadCrowns.instanceColor.needsUpdate = true;
+  broadTrunks.castShadow = true;
+  broadCrowns.castShadow = true;
+  group.add(broadTrunks);
+  group.add(broadCrowns);
 
   // The runway: dark strip, white threshold bars, edge lights, windsock.
   const strip = new THREE.Mesh(
@@ -223,7 +288,7 @@ export function buildTerrain(scene) {
   puffCtx.fillRect(0, 0, 64, 64);
   const puffTex = new THREE.CanvasTexture(puffCanvas);
   const smoke = new THREE.Points(smokeGeo, new THREE.PointsMaterial({
-    color: 0xcfc8c2, size: 34, transparent: true, opacity: 0.55, sizeAttenuation: true,
+    color: 0xcfc8c2, size: 44, transparent: true, opacity: 0.6, sizeAttenuation: true,
     map: puffTex, alphaTest: 0.01, depthWrite: false,
   }));
   smoke.name = 'smoke';

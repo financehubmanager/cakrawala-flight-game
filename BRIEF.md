@@ -100,13 +100,17 @@ One job per file, named for what it does:
 
 ## Screenshot plan (the cover decides the first impression)
 
-1280×720 JPEG, each ≤ 256 KiB. First by name is the cover.
-1. `1-cover.jpg` — chase view, low over the lagoon toward the volcano, ring
-   dead ahead, runway lights visible, HUD lit, sun low. The whole game in one frame.
+1280×720 JPEG, each ≤ 256 KiB. First by name is the cover. v2 (27 Nov, pasca
+ronde 2: 6192/13681) — cover kini low pass di garis tengah runway (ring +
+runway + gunung + laut satu frame), kokpit terbang level (ATT konsisten),
+kotak tutorial disembunyikan di shot mode, kamera chase 16,5 m.
+1. `1-cover.jpg` — low pass di garis tengah runway menghadap utara, ring
+   dead ahead di atas runway, HUD lit, matahari rendah, gunung di kejauhan.
 2. `2-rings.jpg` — mid-flight ring pass, wings banked, terraces below.
-3. `3-cockpit.jpg` — cockpit view, lit panel, ring + runway ahead through the
-   windscreen.
-4. `4-landing.jpg` — final approach, gear down, runway threshold ahead, dusk light.
+3. `3-cockpit.jpg` — cockpit view LEVEL, lit panel (ATT + jarum hidup),
+   ring + runway ahead through the windscreen.
+4. `4-landing.jpg` — final approach 80 m sebelum threshold, gear down,
+   runway threshold ahead, dusk light.
 
 ## Verification loop (procedural-3d-web-game skill, scaled to the bounty)
 

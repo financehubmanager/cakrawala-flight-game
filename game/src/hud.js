@@ -68,11 +68,14 @@ export function createHud() {
     if (flaps) flaps.textContent = f.flaps ? 'FLAP 15' : 'FLAP 0';
     setText('hud-hits', `RUSAK ${f.hits}/3`);
     // Compass tape: heading numbers slide past the centre mark. The tape is
-    // filled once with three repeats of 0..330 so it can slide seamlessly.
+    // filled once with four repeats of 0..330 and parked one repeat left of
+    // centre, so labels exist on both sides of the mark at every heading.
+    // (Three repeats starting at centre left heading ~000 with no label
+    // left of the first N 000 — KECIL-1: the 330 label was missing.)
     const tape = el('hud-compass-tape');
     if (tape && !tape.dataset.filled) {
       tape.dataset.filled = '1';
-      for (let rep = 0; rep < 3; rep += 1) {
+      for (let rep = 0; rep < 4; rep += 1) {
         for (let deg = 0; deg < 360; deg += 30) {
           const span = document.createElement('span');
           span.textContent = deg === 0 ? 'N 000' : deg === 90 ? 'E 090' : deg === 180 ? 'S 180' : deg === 270 ? 'W 270' : String(deg).padStart(3, '0');
@@ -84,7 +87,7 @@ export function createHud() {
       const deg = headingDeg(f.heading);
       const compass = el('hud-compass');
       const w = compass ? compass.clientWidth : 340;
-      const shift = -(deg * 2.4) % 864;
+      const shift = (-(deg * 2.4) % 864) - 864;
       tape.style.transform = `translateX(${shift}px)`;
       // Fade each label out before its centre reaches the tape edge, so no
       // half-label ("N 0") is ever visible — a fade on the container alone

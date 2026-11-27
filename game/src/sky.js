@@ -75,7 +75,9 @@ export function buildSky(scene, renderer) {
           : mix(low, mid, smoothstep(-0.08, 0.28, h));
         float sunAmount = pow(max(dot(normalize(vDir), normalize(sunDir)), 0.0), 90.0);
         float halo = pow(max(dot(normalize(vDir), normalize(sunDir)), 0.0), 8.0);
-        col += sunColor * (sunAmount * 0.9 + halo * 0.22);
+        // v2: a wider, warmer glow around the sun so the sky has depth
+        // instead of a flat disc on a flat gradient.
+        col += sunColor * (sunAmount * 1.0 + halo * 0.32);
         gl_FragColor = vec4(col, 1.0);
       }`,
   });
@@ -108,7 +110,9 @@ export function buildSky(scene, renderer) {
   scene.add(fill);
   scene.add(fill.target);
 
-  scene.fog = new THREE.Fog(new THREE.Color(PALETTE.fog), 700, 3800);
+  // v2: fog starts closer (850 m) so distant ridges haze into layers —
+  // aerial perspective the v1 700 m start barely showed.
+  scene.fog = new THREE.Fog(new THREE.Color(PALETTE.fog), 850, 3400);
 
   // Cumulus: soft billboards drifting slowly, tinted by the sun.
   const tex = makeCloudTexture();
@@ -126,6 +130,20 @@ export function buildSky(scene, renderer) {
     const s = 300 + rand() * 420;
     sprite.scale.set(s, s * 0.45, 1);
     sprite.userData.drift = 2 + rand() * 3;
+    clouds.add(sprite);
+  }
+  // v2: a few big, low clouds near the horizon for layered distance.
+  for (let i = 0; i < 8; i += 1) {
+    const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: tex, transparent: true, opacity: 0.3 + rand() * 0.1, depthWrite: false,
+    }));
+    const x = (rand() - 0.5) * 7200;
+    const z = (rand() - 0.5) * 7200;
+    const y = 420 + rand() * 140;
+    sprite.position.set(x, y, z);
+    const s = 520 + rand() * 260;
+    sprite.scale.set(s, s * 0.4, 1);
+    sprite.userData.drift = 1 + rand() * 2;
     clouds.add(sprite);
   }
   scene.add(clouds);

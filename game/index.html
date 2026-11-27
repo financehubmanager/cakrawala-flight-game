@@ -47,9 +47,13 @@
   body.shot-mode #hud-hint { display: none; }
   /* v3 (KECIL-2): below 1280 px the mission banner covered the HEADING
      panel. Shrink the top HUD so all three clusters fit side by side.
-     Screenshots are taken at exactly 1280x720, so this never applies there. */
+     Screenshots are taken at exactly 1280x720, so this never applies there.
+     v4 (KECIL-2, compass strip): the banner was still too narrow for the
+     72 px compass labels — widen it to 320 px so 300/030 survive at the
+     fade edges instead of vanishing. The tape math (2.4 px/deg) is
+     untouched; only the visible window grows. */
   @media (max-width: 1279px) {
-    #hud-topcenter { min-width: 230px; }
+    #hud-topcenter { min-width: 320px; }
     #hud-topleft, #hud-topright { gap: 6px; }
     .panel { padding: 6px 8px; }
     .panel .label { font-size: 9px; }

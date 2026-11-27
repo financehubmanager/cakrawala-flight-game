@@ -73,13 +73,13 @@ export function buildPlaneMesh() {
   group.add(prop);
   // Nav lights: red left, green right, white tail — small emissive spheres.
   const navMat = (c) => new THREE.MeshBasicMaterial({ color: c });
-  const navL = new THREE.Mesh(new THREE.SphereGeometry(0.16, 6, 6), navMat(0xff2a2a));
+  const navL = new THREE.Mesh(new THREE.SphereGeometry(0.24, 6, 6), navMat(0xff2a2a));
   navL.position.set(-6.7, 0.85, -0.6);
   group.add(navL);
-  const navR = new THREE.Mesh(new THREE.SphereGeometry(0.16, 6, 6), navMat(0x2aff66));
+  const navR = new THREE.Mesh(new THREE.SphereGeometry(0.24, 6, 6), navMat(0x2aff66));
   navR.position.set(6.7, 0.85, -0.6);
   group.add(navR);
-  const navT = new THREE.Mesh(new THREE.SphereGeometry(0.14, 6, 6), navMat(0xffffff));
+  const navT = new THREE.Mesh(new THREE.SphereGeometry(0.2, 6, 6), navMat(0xffffff));
   navT.position.set(0, 0.5, 4.1);
   group.add(navT);
   // Landing lights under the wings.
@@ -89,6 +89,54 @@ export function buildPlaneMesh() {
     lamp.position.set(x, 0.68, -1.5);
     group.add(lamp);
   });
+  // Wing struts: a high-wing bush plane reads as built when the wing is
+  // held up by struts, not floating. Diagonal cylinders, fuselage to wing.
+  const strutMat = dark;
+  function strutBetween(a, b, r) {
+    const dir = new THREE.Vector3().subVectors(b, a);
+    const len = dir.length();
+    const mesh = new THREE.Mesh(new THREE.CylinderGeometry(r, r, len, 6), strutMat);
+    mesh.position.copy(a).addScaledVector(dir, 0.5);
+    mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().normalize());
+    group.add(mesh);
+  }
+  [-1, 1].forEach((s) => {
+    strutBetween(new THREE.Vector3(s * 0.7, -0.7, -0.6), new THREE.Vector3(s * 3.4, 0.78, -0.6), 0.09);
+  });
+  // Spinner cone on the prop hub, orange.
+  const spinner = new THREE.Mesh(new THREE.ConeGeometry(0.34, 0.9, 10), orange);
+  spinner.rotation.x = -Math.PI / 2;
+  spinner.position.set(0, 0, -5.5);
+  group.add(spinner);
+  // Prop tip markings: yellow stripes, so the spinning disc reads as a prop.
+  const tipMat = new THREE.MeshBasicMaterial({ color: 0xffd23e });
+  [[0, 1.55], [0, -1.55], [1.55, 0], [-1.55, 0]].forEach(([x, y]) => {
+    const tip = new THREE.Mesh(new THREE.BoxGeometry(x === 0 ? 0.36 : 0.5, y === 0 ? 0.36 : 0.5, 0.14), tipMat);
+    tip.position.set(x, y, 0);
+    prop.add(tip);
+  });
+  // Dorsal antenna + tail strobe + pitot tube + exhaust stacks + tail wheel.
+  const antenna = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.06, 0.9, 6), dark);
+  antenna.position.set(0, 1.5, 1.6);
+  antenna.rotation.x = 0.25;
+  group.add(antenna);
+  const strobe = new THREE.Mesh(new THREE.SphereGeometry(0.12, 6, 6), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+  strobe.position.set(0, 2.55, 3.5);
+  group.add(strobe);
+  const pitot = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.9, 6), dark);
+  pitot.rotation.x = Math.PI / 2;
+  pitot.position.set(-3.4, 0.55, -1.9);
+  group.add(pitot);
+  [-0.35, 0.35].forEach((x) => {
+    const exhaust = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.13, 0.7, 6), dark);
+    exhaust.position.set(x, -0.72, -3.5);
+    exhaust.rotation.x = 0.35;
+    group.add(exhaust);
+  });
+  const tailWheel = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.22, 8), dark);
+  tailWheel.rotation.z = Math.PI / 2;
+  tailWheel.position.set(0, -1.15, 3.9);
+  group.add(tailWheel);
   return { group, prop, cockpit: buildCockpit() };
 }
 
@@ -100,38 +148,40 @@ function buildCockpit() {
   cockpit.name = 'cockpit';
   const dark = new THREE.MeshStandardMaterial({ color: 0x22242a, roughness: 0.85, metalness: 0.1 });
 
-  const panelTex = makePanelTexture();
-  const panelFace = new THREE.MeshBasicMaterial({ map: panelTex });
-  // Panel 1.4 m ahead of the seat: at 68° FOV it fills the lower third
-  // instead of swallowing the frame (the first version sat 0.8 m out).
-  const panel = new THREE.Mesh(
-    new THREE.BoxGeometry(2.0, 0.6, 0.1),
+  const panel = createPanel();
+  // Panel 2.1 m ahead of the seat: at 68° FOV it sits in the lower third
+  // instead of swallowing the frame (v1 sat 1.4 m out and filled half of it).
+  const panelFace = new THREE.MeshBasicMaterial({ map: panel.texture });
+  const panelMesh = new THREE.Mesh(
+    new THREE.BoxGeometry(1.85, 0.55, 0.1),
     [dark, dark, dark, dark, panelFace, dark],
   );
-  panel.position.set(0, 0.42, -3.6);
-  panel.rotation.x = -0.12;
-  cockpit.add(panel);
-  const glare = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.06, 0.3), dark);
-  glare.position.set(0, 0.74, -3.55);
+  panelMesh.position.set(0, 0.38, -4.3);
+  panelMesh.rotation.x = -0.12;
+  cockpit.add(panelMesh);
+  const glare = new THREE.Mesh(new THREE.BoxGeometry(1.75, 0.06, 0.3), dark);
+  glare.position.set(0, 0.68, -4.25);
   cockpit.add(glare);
   cockpit.visible = false;
+  cockpit.userData.updatePanel = panel.update;
   return cockpit;
 }
 
-// Painted instrument panel: airspeed, attitude, altimeter, fuel, RPM —
-// static needles on a dark face, lit by the emissive-style basic material.
-function makePanelTexture() {
+// Painted instrument panel: airspeed, attitude, altimeter, fuel, RPM.
+// The needles and the attitude horizon are redrawn from live flight state,
+// so the panel reads as flown, not painted: the ATT horizon rolls with the
+// bank and shifts with pitch, and every needle tracks the HUD numbers.
+function createPanel() {
   const canvas = document.createElement('canvas');
   canvas.width = 512;
   canvas.height = 160;
   const ctx = canvas.getContext('2d');
-  ctx.fillStyle = '#14161c';
-  ctx.fillRect(0, 0, 512, 160);
-  const grad = ctx.createLinearGradient(0, 0, 0, 160);
-  grad.addColorStop(0, 'rgba(255,255,255,0.06)');
-  grad.addColorStop(1, 'rgba(255,255,255,0)');
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, 512, 160);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  const clamp01 = (v) => Math.max(0, Math.min(1, v));
+  // Needle angle on the dial face: 0 = 3 o'clock, positive clockwise.
+  const needle = (v) => -2.35 + clamp01(v) * 2.7;
+
   function dial(cx, cy, r, label, needleAngle, needleColor) {
     ctx.beginPath();
     ctx.arc(cx, cy, r, 0, Math.PI * 2);
@@ -164,38 +214,55 @@ function makePanelTexture() {
     ctx.textAlign = 'center';
     ctx.fillText(label, cx, cy + r + 16);
   }
-  // Attitude indicator: blue sky over brown ground, white horizon bar.
-  ctx.save();
-  ctx.beginPath();
-  ctx.arc(256, 74, 52, 0, Math.PI * 2);
-  ctx.clip();
-  ctx.fillStyle = '#2f6fb2';
-  ctx.fillRect(204, 22, 104, 52);
-  ctx.fillStyle = '#7a5230';
-  ctx.fillRect(204, 74, 104, 52);
-  ctx.strokeStyle = '#f4f1e8';
-  ctx.lineWidth = 3;
-  ctx.beginPath();
-  ctx.moveTo(208, 74);
-  ctx.lineTo(304, 74);
-  ctx.stroke();
-  ctx.restore();
-  ctx.beginPath();
-  ctx.arc(256, 74, 52, 0, Math.PI * 2);
-  ctx.lineWidth = 3;
-  ctx.strokeStyle = '#3a4356';
-  ctx.stroke();
-  ctx.font = 'bold 15px system-ui, sans-serif';
-  ctx.fillStyle = '#f4f1e8';
-  ctx.textAlign = 'center';
-  ctx.fillText('ATT', 256, 74 + 52 - 20); // inside the dial, brown half: the panel top edge and the DOM horizon widget both cover the outside
-  dial(104, 74, 52, 'KT', -2.2, '#ffb020');
-  dial(408, 74, 52, 'ALT', -0.9, '#7fe3f0');
-  dial(472, 74, 26, 'FUEL', -2.5, '#3ddc78');
-  dial(40, 74, 26, 'RPM', -1.1, '#ffb020');
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
+
+  function update(state = {}) {
+    const roll = state.roll ?? 0;
+    const pitch = state.pitch ?? 0;
+    ctx.fillStyle = '#14161c';
+    ctx.fillRect(0, 0, 512, 160);
+    const grad = ctx.createLinearGradient(0, 0, 0, 160);
+    grad.addColorStop(0, 'rgba(255,255,255,0.06)');
+    grad.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 512, 160);
+    // Attitude indicator: the horizon rolls with the bank and shifts with
+    // pitch, so it can never contradict the world outside the windscreen.
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(256, 74, 52, 0, Math.PI * 2);
+    ctx.clip();
+    ctx.translate(256, 74);
+    ctx.rotate(-roll);
+    ctx.translate(0, Math.max(-0.4, Math.min(0.4, pitch)) * 55);
+    ctx.fillStyle = '#2f6fb2';
+    ctx.fillRect(-52, -52, 104, 52);
+    ctx.fillStyle = '#7a5230';
+    ctx.fillRect(-52, 0, 104, 52);
+    ctx.strokeStyle = '#f4f1e8';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(-48, 0);
+    ctx.lineTo(48, 0);
+    ctx.stroke();
+    ctx.restore();
+    ctx.beginPath();
+    ctx.arc(256, 74, 52, 0, Math.PI * 2);
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = '#3a4356';
+    ctx.stroke();
+    ctx.font = 'bold 15px system-ui, sans-serif';
+    ctx.fillStyle = '#f4f1e8';
+    ctx.textAlign = 'center';
+    ctx.fillText('ATT', 256, 74 + 52 - 20);
+    dial(104, 74, 52, 'KT', needle((state.speedKmh ?? 0) / 475), '#ffb020');
+    dial(408, 74, 52, 'ALT', needle((state.altM ?? 0) / 1500), '#7fe3f0');
+    dial(472, 74, 26, 'FUEL', needle(state.fuel ?? 1), '#3ddc78');
+    dial(40, 74, 26, 'RPM', needle(state.throttle ?? 0), '#ffb020');
+    tex.needsUpdate = true;
+  }
+
+  update({});
+  return { texture: tex, update };
 }
 
 export function createFlightModel() {

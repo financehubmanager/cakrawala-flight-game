@@ -141,27 +141,91 @@ export function buildPlaneMesh() {
 }
 
 // Cockpit interior, in plane-local coordinates (-z forward). Only visible in
-// cockpit camera mode: a lit instrument panel, glareshield, A-pillars and a
-// yoke, so the cockpit view reads as a cockpit instead of bare landscape.
+// cockpit camera mode: a lit instrument panel set into the dashboard, a
+// glareshield hood, side cheeks, A-pillars and a control stick, so the
+// cockpit view reads as a cockpit instead of bare landscape.
 function buildCockpit() {
   const cockpit = new THREE.Group();
   cockpit.name = 'cockpit';
   const dark = new THREE.MeshStandardMaterial({ color: 0x22242a, roughness: 0.85, metalness: 0.1 });
+  const metal = new THREE.MeshStandardMaterial({ color: 0x2e3238, roughness: 0.45, metalness: 0.55 });
+
+  // v3: the panel is set INTO the dashboard now, not taped over the
+  // windscreen. A mounting frame rims it, a glareshield hood overhangs it,
+  // side cheeks tie it to the canopy frame, A-pillars frame the windscreen,
+  // and a control stick sits in front of the pilot — the cockpit shot
+  // reads as sitting in a seat instead of a card floating over a landscape.
+  function strutBetween(a, b, r, mat) {
+    const dir = new THREE.Vector3().subVectors(b, a);
+    const len = dir.length();
+    const mesh = new THREE.Mesh(new THREE.CylinderGeometry(r, r, len, 6), mat);
+    mesh.position.copy(a).addScaledVector(dir, 0.5);
+    mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().normalize());
+    cockpit.add(mesh);
+  }
+
+  // Mounting frame: a rim around the panel, so the panel reads as bolted
+  // into the dashboard instead of floating in front of it.
+  const frame = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.68, 0.05), metal);
+  frame.position.set(0, 0.38, -4.44);
+  frame.rotation.x = -0.12;
+  cockpit.add(frame);
 
   const panel = createPanel();
   // Panel 2.1 m ahead of the seat: at 68° FOV it sits in the lower third
   // instead of swallowing the frame (v1 sat 1.4 m out and filled half of it).
   const panelFace = new THREE.MeshBasicMaterial({ map: panel.texture });
   const panelMesh = new THREE.Mesh(
-    new THREE.BoxGeometry(1.85, 0.55, 0.1),
+    new THREE.BoxGeometry(1.85, 0.55, 0.16),
     [dark, dark, dark, dark, panelFace, dark],
   );
   panelMesh.position.set(0, 0.38, -4.3);
   panelMesh.rotation.x = -0.12;
   cockpit.add(panelMesh);
-  const glare = new THREE.Mesh(new THREE.BoxGeometry(1.75, 0.06, 0.3), dark);
-  glare.position.set(0, 0.68, -4.25);
-  cockpit.add(glare);
+
+  // Glareshield hood: a sloped visor over the panel's top edge. Its front
+  // edge meets the panel top, its back edge rises just above it — the band
+  // of shade a real glareshield throws over the instruments.
+  const hood = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.05, 0.4), dark);
+  hood.position.set(0, 0.78, -4.18);
+  hood.rotation.x = 0.4;
+  cockpit.add(hood);
+  [-1, 1].forEach((s) => {
+    const cheek = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.55, 0.45), dark);
+    cheek.position.set(s * 1.02, 0.45, -4.1);
+    cheek.rotation.y = -s * 0.25;
+    cockpit.add(cheek);
+  });
+
+  // A-pillars: from the panel's top corners up and out, leaving through the
+  // frame's top corners — the windscreen is framed, not open sky. Thin
+  // (0.05 m) and slightly metallic, so they read as structure catching the
+  // sun instead of black girders.
+  [-1, 1].forEach((s) => {
+    strutBetween(
+      new THREE.Vector3(s * 0.98, 0.62, -4.25),
+      new THREE.Vector3(s * 1.85, 2.15, -3.95),
+      0.05, metal,
+    );
+  });
+
+  // Control stick: a bush plane flies with a stick, not a yoke. A thin
+  // column from the floor, leaning toward the pilot, with a grip and a red
+  // trigger just below the panel's bottom edge — the foreground cue that
+  // you are sitting in the seat.
+  strutBetween(new THREE.Vector3(0, -0.35, -4.15), new THREE.Vector3(0, 0.16, -3.9), 0.045, metal);
+  const grip = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.2, 0.1), dark);
+  grip.position.set(0, 0.18, -3.86);
+  grip.rotation.x = 0.4;
+  cockpit.add(grip);
+  const trigger = new THREE.Mesh(
+    new THREE.BoxGeometry(0.04, 0.06, 0.03),
+    new THREE.MeshBasicMaterial({ color: 0xe03c2e }),
+  );
+  trigger.position.set(0, 0.22, -3.8);
+  trigger.rotation.x = 0.4;
+  cockpit.add(trigger);
+
   cockpit.visible = false;
   cockpit.userData.updatePanel = panel.update;
   return cockpit;
@@ -171,93 +235,216 @@ function buildCockpit() {
 // The needles and the attitude horizon are redrawn from live flight state,
 // so the panel reads as flown, not painted: the ATT horizon rolls with the
 // bank and shifts with pitch, and every needle tracks the HUD numbers.
+// v3: the panel is a real instrument panel now — machined metal face,
+// corner screws, metal bezels with glass, numbered dials, redlines, and a
+// fixed attitude symbol — so the cockpit shot reads as a cockpit, not a card.
 function createPanel() {
   const canvas = document.createElement('canvas');
-  canvas.width = 512;
-  canvas.height = 160;
+  canvas.width = 640;
+  canvas.height = 200;
   const ctx = canvas.getContext('2d');
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
   const clamp01 = (v) => Math.max(0, Math.min(1, v));
   // Needle angle on the dial face: 0 = 3 o'clock, positive clockwise.
-  const needle = (v) => -2.35 + clamp01(v) * 2.7;
+  const needleAngle = (v) => -2.35 + clamp01(v) * 2.7;
 
-  function dial(cx, cy, r, label, needleAngle, needleColor) {
+  function roundRectPath(x, y, w, h, r) {
     ctx.beginPath();
-    ctx.arc(cx, cy, r, 0, Math.PI * 2);
-    ctx.fillStyle = '#0d1117';
-    ctx.fill();
-    ctx.lineWidth = 3;
-    ctx.strokeStyle = '#3a4356';
-    ctx.stroke();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+
+  function screw(x, y) {
+    const g = ctx.createRadialGradient(x - 2, y - 2, 1, x, y, 7);
+    g.addColorStop(0, '#e9edf3');
+    g.addColorStop(0.6, '#7d838e');
+    g.addColorStop(1, '#2c3038');
+    ctx.beginPath(); ctx.arc(x, y, 7, 0, Math.PI * 2);
+    ctx.fillStyle = g; ctx.fill();
+    ctx.beginPath(); ctx.arc(x, y, 7, 0, Math.PI * 2);
+    ctx.lineWidth = 1.5; ctx.strokeStyle = '#0a0c0f'; ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x - 4, y - 1); ctx.lineTo(x + 4, y + 1);
+    ctx.lineWidth = 2; ctx.strokeStyle = '#1c1f24'; ctx.stroke();
+  }
+
+  // A real gauge: metallic bezel ring, a groove, then the dark face.
+  function bezel(cx, cy, r) {
+    const g = ctx.createRadialGradient(cx - r * 0.3, cy - r * 0.35, r * 0.15, cx, cy, r + 7);
+    g.addColorStop(0, '#e9edf3');
+    g.addColorStop(0.45, '#9aa1ad');
+    g.addColorStop(0.75, '#4a515c');
+    g.addColorStop(1, '#23272e');
+    ctx.beginPath(); ctx.arc(cx, cy, r + 7, 0, Math.PI * 2);
+    ctx.fillStyle = g; ctx.fill();
+    ctx.beginPath(); ctx.arc(cx, cy, r + 1, 0, Math.PI * 2);
+    ctx.lineWidth = 2; ctx.strokeStyle = '#05070a'; ctx.stroke();
+    const fg = ctx.createRadialGradient(cx - r * 0.25, cy - r * 0.3, r * 0.1, cx, cy, r);
+    fg.addColorStop(0, '#171b21');
+    fg.addColorStop(1, '#090c10');
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fillStyle = fg; ctx.fill();
+  }
+
+  // Glass: a diagonal sheen over the dial face, clipped to the circle.
+  function glass(cx, cy, r) {
+    ctx.save();
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.clip();
+    const g = ctx.createLinearGradient(cx - r, cy - r, cx + r * 0.4, cy + r * 0.4);
+    g.addColorStop(0, 'rgba(255,255,255,0.13)');
+    g.addColorStop(0.45, 'rgba(255,255,255,0.03)');
+    g.addColorStop(0.6, 'rgba(255,255,255,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
+    ctx.restore();
+  }
+
+  function ticks(cx, cy, r) {
     for (let i = 0; i < 12; i += 1) {
       const a = (i / 12) * Math.PI * 2;
       ctx.beginPath();
       ctx.moveTo(cx + Math.cos(a) * (r - 4), cy + Math.sin(a) * (r - 4));
-      ctx.lineTo(cx + Math.cos(a) * (r - 10), cy + Math.sin(a) * (r - 10));
+      ctx.lineTo(cx + Math.cos(a) * (r - 11), cy + Math.sin(a) * (r - 11));
       ctx.lineWidth = i % 3 === 0 ? 3 : 1.5;
       ctx.strokeStyle = '#c8cdd8';
       ctx.stroke();
     }
-    ctx.beginPath();
-    ctx.moveTo(cx, cy);
-    ctx.lineTo(cx + Math.cos(needleAngle) * (r - 12), cy + Math.sin(needleAngle) * (r - 12));
-    ctx.lineWidth = 3;
-    ctx.strokeStyle = needleColor;
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.arc(cx, cy, 4, 0, Math.PI * 2);
+  }
+
+  // Numerals printed on the face (list of [value, text]); the needle sweeps
+  // over them, the way a real gauge's needle does.
+  function numbers(cx, cy, r, list, fontPx) {
+    ctx.font = `bold ${fontPx}px system-ui, sans-serif`;
     ctx.fillStyle = '#c8cdd8';
-    ctx.fill();
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    list.forEach(([v, text]) => {
+      const a = needleAngle(v);
+      ctx.fillText(text, cx + Math.cos(a) * (r - 20), cy + Math.sin(a) * (r - 20));
+    });
+    ctx.textBaseline = 'alphabetic';
+  }
+
+  function redline(cx, cy, r) {
+    ctx.beginPath();
+    ctx.arc(cx, cy, r - 6, needleAngle(0.85), needleAngle(1));
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = '#ff5a4e';
+    ctx.stroke();
+  }
+
+  function dial(cx, cy, r, label, value, color, nums, withRedline) {
+    bezel(cx, cy, r);
+    ticks(cx, cy, r);
+    if (nums) numbers(cx, cy, r, nums.list, nums.fontPx);
+    if (withRedline) redline(cx, cy, r);
+    const a = needleAngle(value);
+    ctx.beginPath();
+    ctx.moveTo(cx - Math.cos(a) * 6, cy - Math.sin(a) * 6);
+    ctx.lineTo(cx + Math.cos(a) * (r - 12), cy + Math.sin(a) * (r - 12));
+    ctx.lineWidth = 3.5;
+    ctx.strokeStyle = color;
+    ctx.stroke();
+    const hg = ctx.createRadialGradient(cx - 2, cy - 2, 1, cx, cy, 6);
+    hg.addColorStop(0, '#e9edf3');
+    hg.addColorStop(1, '#5a6270');
+    ctx.beginPath(); ctx.arc(cx, cy, 5, 0, Math.PI * 2);
+    ctx.fillStyle = hg; ctx.fill();
+    ctx.beginPath(); ctx.arc(cx, cy, 5, 0, Math.PI * 2);
+    ctx.lineWidth = 1; ctx.strokeStyle = '#0a0c0f'; ctx.stroke();
+    glass(cx, cy, r);
     ctx.font = 'bold 15px system-ui, sans-serif';
     ctx.fillStyle = '#e8e4d8';
     ctx.textAlign = 'center';
-    ctx.fillText(label, cx, cy + r + 16);
+    ctx.fillText(label, cx, cy + r + 18);
   }
 
   function update(state = {}) {
     const roll = state.roll ?? 0;
     const pitch = state.pitch ?? 0;
-    ctx.fillStyle = '#14161c';
-    ctx.fillRect(0, 0, 512, 160);
-    const grad = ctx.createLinearGradient(0, 0, 0, 160);
-    grad.addColorStop(0, 'rgba(255,255,255,0.06)');
-    grad.addColorStop(1, 'rgba(255,255,255,0)');
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, 512, 160);
+    // Panel face: near-black surround, then a machined metal slab with a
+    // bevel — a top light edge and a bottom shadow edge, so the panel
+    // reads as a solid slab instead of a painted card.
+    ctx.fillStyle = '#0a0c0f';
+    ctx.fillRect(0, 0, 640, 200);
+    const face = ctx.createLinearGradient(0, 0, 0, 200);
+    face.addColorStop(0, '#262b33');
+    face.addColorStop(0.5, '#171a1f');
+    face.addColorStop(1, '#0f1114');
+    roundRectPath(6, 6, 628, 188, 12);
+    ctx.fillStyle = face;
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(20, 7); ctx.lineTo(620, 7);
+    ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(255,255,255,0.12)'; ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(20, 193); ctx.lineTo(620, 193);
+    ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(0,0,0,0.55)'; ctx.stroke();
+    // Corner screws + placard.
+    screw(20, 20); screw(620, 20); screw(20, 180); screw(620, 180);
+    ctx.font = 'bold 12px system-ui, sans-serif';
+    ctx.fillStyle = '#8a93a5';
+    ctx.textAlign = 'center';
+    ctx.fillText('E L A N G - 7', 320, 26);
     // Attitude indicator: the horizon rolls with the bank and shifts with
     // pitch, so it can never contradict the world outside the windscreen.
+    bezel(320, 100, 56);
     ctx.save();
     ctx.beginPath();
-    ctx.arc(256, 74, 52, 0, Math.PI * 2);
+    ctx.arc(320, 100, 56, 0, Math.PI * 2);
     ctx.clip();
-    ctx.translate(256, 74);
+    ctx.translate(320, 100);
     ctx.rotate(-roll);
     ctx.translate(0, Math.max(-0.4, Math.min(0.4, pitch)) * 55);
     ctx.fillStyle = '#2f6fb2';
-    ctx.fillRect(-52, -52, 104, 52);
+    ctx.fillRect(-56, -56, 112, 56);
     ctx.fillStyle = '#7a5230';
-    ctx.fillRect(-52, 0, 104, 52);
+    ctx.fillRect(-56, 0, 112, 56);
+    // Pitch ladder: short white ticks at ±10 deg, moving with the ball.
+    ctx.strokeStyle = 'rgba(244,241,232,0.85)';
+    ctx.lineWidth = 2;
+    [-11, 11].forEach((dy) => {
+      ctx.beginPath(); ctx.moveTo(-32, dy); ctx.lineTo(-10, dy); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(10, dy); ctx.lineTo(32, dy); ctx.stroke();
+    });
     ctx.strokeStyle = '#f4f1e8';
     ctx.lineWidth = 3;
     ctx.beginPath();
-    ctx.moveTo(-48, 0);
-    ctx.lineTo(48, 0);
+    ctx.moveTo(-52, 0);
+    ctx.lineTo(52, 0);
     ctx.stroke();
     ctx.restore();
+    // Fixed aircraft symbol (does not roll): the reference that makes the
+    // ball read as an attitude indicator instead of a painted circle.
+    ctx.strokeStyle = '#ffb020';
+    ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.moveTo(320 - 26, 100); ctx.lineTo(320 - 8, 100); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(320 + 8, 100); ctx.lineTo(320 + 26, 100); ctx.stroke();
+    ctx.beginPath(); ctx.arc(320, 100, 4, 0, Math.PI * 2);
+    ctx.fillStyle = '#ffb020'; ctx.fill();
+    // Bank pointer: small triangle at 12 o'clock on the bezel.
     ctx.beginPath();
-    ctx.arc(256, 74, 52, 0, Math.PI * 2);
-    ctx.lineWidth = 3;
-    ctx.strokeStyle = '#3a4356';
-    ctx.stroke();
+    ctx.moveTo(320 - 6, 100 - 56 - 8);
+    ctx.lineTo(320 + 6, 100 - 56 - 8);
+    ctx.lineTo(320, 100 - 56 - 1);
+    ctx.fillStyle = '#f4f1e8'; ctx.fill();
+    glass(320, 100, 56);
     ctx.font = 'bold 15px system-ui, sans-serif';
-    ctx.fillStyle = '#f4f1e8';
+    ctx.fillStyle = '#e8e4d8';
     ctx.textAlign = 'center';
-    ctx.fillText('ATT', 256, 74 + 52 - 20);
-    dial(104, 74, 52, 'KT', needle((state.speedKmh ?? 0) / 475), '#ffb020');
-    dial(408, 74, 52, 'ALT', needle((state.altM ?? 0) / 1500), '#7fe3f0');
-    dial(472, 74, 26, 'FUEL', needle(state.fuel ?? 1), '#3ddc78');
-    dial(40, 74, 26, 'RPM', needle(state.throttle ?? 0), '#ffb020');
+    ctx.fillText('ATT', 320, 100 + 56 + 18);
+    dial(140, 100, 56, 'KT', (state.speedKmh ?? 0) / 475, '#ffb020',
+      { list: [[0, '0'], [0.25, '1'], [0.5, '2'], [0.75, '3'], [1, '4']], fontPx: 13 }, true);
+    dial(500, 100, 56, 'ALT', (state.altM ?? 0) / 1500, '#7fe3f0',
+      { list: [[0, '0'], [0.5, '8'], [1, '15']], fontPx: 13 }, false);
+    dial(592, 100, 28, 'FUEL', state.fuel ?? 1, '#3ddc78',
+      { list: [[0, 'E'], [0.5, '½'], [1, 'F']], fontPx: 11 }, false);
+    dial(48, 100, 28, 'RPM', state.throttle ?? 0, '#ffb020', null, true);
     tex.needsUpdate = true;
   }
 

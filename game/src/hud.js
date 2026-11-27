@@ -67,6 +67,15 @@ export function createHud() {
     const flaps = el('hud-flaps');
     if (flaps) flaps.textContent = f.flaps ? 'FLAP 15' : 'FLAP 0';
     setText('hud-hits', `RUSAK ${f.hits}/3`);
+    // v5: crash banner — a persistent red strip while the phase is
+    // 'crashed'. In live play it sits behind the crash modal (the modal
+    // is the feedback there); in shot mode the modal is hidden, so the
+    // banner is the readable crash signal over the wreck.
+    const banner = el('crash-banner');
+    if (banner) {
+      banner.classList.toggle('hidden', game.phase !== 'crashed');
+      if (game.phase === 'crashed') banner.textContent = `MISI GAGAL — ${state.crashReason ?? 'Pesawat jatuh.'}`;
+    }
     // Compass tape: heading numbers slide past the centre mark. The tape is
     // filled once with four repeats of 0..330 and parked one repeat left of
     // centre, so labels exist on both sides of the mark at every heading.
@@ -104,6 +113,7 @@ export function createHud() {
   }
 
   function showCrash(reason) {
+    state.crashReason = reason;
     const node = el('crash-reason');
     if (node) node.textContent = reason;
     showOverlay('crash-screen');

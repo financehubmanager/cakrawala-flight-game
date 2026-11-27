@@ -64,6 +64,8 @@
   }
   @keyframes blink { 50% { opacity: 0.35; } }
   #toast { position: absolute; top: 108px; left: 50%; transform: translateX(-50%); background: rgba(12,18,26,0.78); border: 1px solid rgba(127,227,240,0.4); color: #fff6e0; padding: 8px 16px; border-radius: 8px; font-size: 15px; font-weight: 600; }
+  /* v5: crash banner — red strip under the mission banner while crashed. */
+  #crash-banner { position: absolute; top: 108px; left: 50%; transform: translateX(-50%); background: rgba(120,10,10,0.88); border: 1px solid #ff5a4e; color: #fff; font-weight: 800; font-size: 17px; letter-spacing: 0.04em; padding: 8px 18px; border-radius: 8px; white-space: nowrap; }
   /* ---- Overlays ---- */
   .overlay { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: radial-gradient(ellipse at center, rgba(20,26,34,0.55), rgba(10,14,20,0.88)); z-index: 10; color: #f4e8d2; }
   .card { max-width: 620px; width: calc(100% - 40px); background: rgba(14,20,28,0.92); border: 1px solid rgba(255,176,32,0.45); border-radius: 16px; padding: 28px 32px; box-shadow: 0 0 40px rgba(0,0,0,0.6); }
@@ -114,6 +116,7 @@
   </div>
   <div id="hud-stall" class="hidden">STALL!</div>
   <div id="toast" class="hidden"></div>
+  <div id="crash-banner" class="hidden"></div>
 </div>
 
 <div id="title-screen" class="overlay">

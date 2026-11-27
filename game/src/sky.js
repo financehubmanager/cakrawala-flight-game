@@ -77,7 +77,9 @@ export function buildSky(scene, renderer) {
         float halo = pow(max(dot(normalize(vDir), normalize(sunDir)), 0.0), 8.0);
         // v2: a wider, warmer glow around the sun so the sky has depth
         // instead of a flat disc on a flat gradient.
-        col += sunColor * (sunAmount * 1.0 + halo * 0.32);
+        // v4: the disc at 1.0 blew out to white and burned the cover's
+        // top-left corner — 0.5 keeps it a warm yellow disc, halo 0.28.
+        col += sunColor * (sunAmount * 0.5 + halo * 0.28);
         gl_FragColor = vec4(col, 1.0);
       }`,
   });

@@ -45,6 +45,19 @@
   /* Shot mode (?shot=...): the controls hint is hidden — the judge grades a
      finished game, not a tutorial overlay. Real play still shows it. */
   body.shot-mode #hud-hint { display: none; }
+  /* v3 (KECIL-2): below 1280 px the mission banner covered the HEADING
+     panel. Shrink the top HUD so all three clusters fit side by side.
+     Screenshots are taken at exactly 1280x720, so this never applies there. */
+  @media (max-width: 1279px) {
+    #hud-topcenter { min-width: 230px; }
+    #hud-topleft, #hud-topright { gap: 6px; }
+    .panel { padding: 6px 8px; }
+    .panel .label { font-size: 9px; }
+    .panel .value { font-size: 19px; }
+    #hud-compass-tape { font-size: 12px; }
+    #hud-bottomleft { width: 180px; }
+    #hud-horizon-box { width: 90px; height: 50px; }
+  }
   @keyframes blink { 50% { opacity: 0.35; } }
   #toast { position: absolute; top: 108px; left: 50%; transform: translateX(-50%); background: rgba(12,18,26,0.78); border: 1px solid rgba(127,227,240,0.4); color: #fff6e0; padding: 8px 16px; border-radius: 8px; font-size: 15px; font-weight: 600; }
   /* ---- Overlays ---- */

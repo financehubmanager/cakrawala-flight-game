@@ -168,6 +168,7 @@ function boot() {
     f.onGround = a.onGround ?? false;
     f.gearDown = a.gearDown ?? true;
     f.flaps = a.flaps ?? false;
+    f.hits = a.hits ?? 0;
     input.setThrottle(a.throttle);
     game.ringsPassed = shot.ringsPassed;
     game.score = shot.ringsPassed * 100;
@@ -184,6 +185,15 @@ function boot() {
       ? 'Semua cincin dilewati — mendarat di landasan!'
       : `Terbang melewati cincin ${game.ringsPassed + 1}/${game.ringTotal}`;
     game.phase = 'flying';
+    // v5: the crash shot is a real crashed state — crash() sets phase
+    // 'crashed', speed 0 and the crash banner — but the modal overlay is
+    // hidden in shot mode so the wrecked aircraft stays visible in frame
+    // (same spirit as the hidden tutorial hint in shot mode). In live
+    // play crash() shows the modal as usual.
+    if (shot.crashed) {
+      crash(shot.crashReason ?? 'Menabrak tanah — pesawat hancur.');
+      hud.showOverlay(null);
+    }
     hud.showOverlay(null);
     hud.update(game);
     flight.sync(plane);
@@ -247,9 +257,13 @@ function boot() {
       // v2: 16.5 m behind instead of 22 m — the Elang-7 fills the frame and
       // reads as a built aircraft, not a toy plane in a landscape. 6.8 m up
       // so the runway ahead of the plane stays visible under it.
+      // v5: a shot may override both (the crash shot uses 10 m / 3.2 m,
+      // so the wrecked aircraft is big enough for ground contact to read).
+      const dist = game.shotMode?.cameraDist ?? 16.5;
+      const height = game.shotMode?.cameraHeight ?? 6.8;
       const behind = f.position.clone()
-        .addScaledVector(forward, -16.5)
-        .add(new THREE.Vector3(0, 6.8, 0));
+        .addScaledVector(forward, -dist)
+        .add(new THREE.Vector3(0, height, 0));
       const snap = game.shotMode ? 1 : Math.min(1, dt * 5);
       camPos.lerp(behind, snap);
       camTarget.lerp(f.position.clone().addScaledVector(forward, 60), Math.min(1, dt * 7 || 1));
@@ -268,7 +282,10 @@ function boot() {
     // Shot mode freezes the pose: the frame is deterministic, the world
     // (clouds, smoke, prop) still moves around it.
     if (game.shotMode) {
-      f.propAngle += dt * 34;
+      // A crashed aircraft's engine is dead: the prop only spins while
+      // the shot is flying. (Live play already stops the prop on crash —
+      // simulate() returns early once the phase leaves 'flying'.)
+      if (game.phase === 'flying') f.propAngle += dt * 34;
       return;
     }
     game.elapsed += dt;
